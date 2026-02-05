@@ -8,11 +8,13 @@ const Click = ({ onClose, onUpload }) => {
   const [username, setUsername] = useState("");
   const [caption, setCaption] = useState("");
   const [photoTaken, setPhotoTaken] = useState(false);
+  const [stream, setStream] = useState(null);
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
+      const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = cameraStream;
+      setStream(cameraStream);
     } catch (error) {
       console.error("Camera error:", error);
       alert("Unable to access camera");
@@ -22,34 +24,44 @@ const Click = ({ onClose, onUpload }) => {
   const takePhoto = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      alert("Camera not ready");
+      return;
+    }
+    
     const ctx = canvas.getContext("2d");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
     setPhotoTaken(true);
 
-    video.srcObject.getTracks().forEach(track => track.stop());
+    // Stop camera only if stream exists
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
   };
 
   const handleSubmit = async () => {
-    const canvas = canvasRef.current;
-    const imageData = canvas.toDataURL("image/png");
-  
-    const blob = await (await fetch(imageData)).blob();
-    const formData = new FormData();
-    formData.append("file", blob, "photo.png"); 
-    formData.append("username", username);
-    formData.append("caption", caption);
-  
+    if (!username.trim() || !caption.trim()) {
+      alert("Please fill in username and caption");
+      return;
+    }
+
     try {
       await axios.post(
         "https://insta-vibe-backend-8yxq.onrender.com/upload",
-        formData,
         {
-          headers: { "Content-Type": "multipart/form-data" },
+          username: username,
+          caption: caption,
+          // For now, we're not sending the actual image
+          // We'll use a placeholder on the backend
+        },
+        {
+          headers: { "Content-Type": "application/json" },
         }
       );
-  
+
       alert("Post created!");
       setUsername("");
       setCaption("");
@@ -58,10 +70,9 @@ const Click = ({ onClose, onUpload }) => {
       onClose(); 
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Error uploading post.");
+      alert("Error uploading post. The backend might be sleeping. Try again in 30 seconds.");
     }
   };
-  
 
   return (
     <div className="create-post-container">
