@@ -16,7 +16,7 @@ function ShowPost(props){
 
   const fetchFiles = () => {
     axios
-      .get("https://insta-vibe-backend.onrender.com/files")
+      .get("https://insta-vibe-backend-8yxq.onrender.com/files")
       .then((response) => {
         setFiles(response.data);
       })
@@ -27,7 +27,7 @@ function ShowPost(props){
 
   const handleDelete = (id) => {
     axios
-      .delete( `https://insta-vibe-backend.onrender.com/delete/${id}`)
+      .delete(`https://insta-vibe-backend-8yxq.onrender.com/delete/${id}`)
       .then(() => {
         fetchFiles();
       })

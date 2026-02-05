@@ -43,13 +43,12 @@ const Click = ({ onClose, onUpload }) => {
   
     try {
       await axios.post(
-  "https://insta-vibe-backend.onrender.com/upload",
-  formData,
-  {
-    headers: { "Content-Type": "multipart/form-data" },
-  }
-);
-
+        "https://insta-vibe-backend-8yxq.onrender.com/upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
   
       alert("Post created!");
       setUsername("");

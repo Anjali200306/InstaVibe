@@ -12,7 +12,7 @@ function SearchUser(){
     if (!username.trim()) return;
 
     axios
-      .get(`https://insta-vibe-backend.onrender.com/files?username=${username}`)
+      .get(`https://insta-vibe-backend-8yxq.onrender.com/files?username=${username}`)
       .then((response) => {
         setSearchResults(response.data);
         setError("");

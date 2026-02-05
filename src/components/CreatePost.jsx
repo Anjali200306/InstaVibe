@@ -26,12 +26,12 @@ function CreatePost(props){
 
     try {
       await axios.post(
-  "https://insta-vibe-backend.onrender.com/upload",
-  formData,
-  {
-    headers: { "Content-Type": "multipart/form-data" },
-  }
-);
+        "https://insta-vibe-backend-8yxq.onrender.com/upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
 
       setMessage("Post created successfully!");
       props.setRefreshTrigger(
