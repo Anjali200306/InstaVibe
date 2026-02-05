@@ -1,34 +1,44 @@
 import React, { useRef, useState } from "react";
 import axios from "axios";
-import "./Click.css"
+
+const API = "https://insta-vibe-backend-8yxq.onrender.com";
 
 const Click = ({ onClose, onUpload }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [username, setUsername] = useState("");
   const [caption, setCaption] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [photoTaken, setPhotoTaken] = useState(false);
   const [stream, setStream] = useState(null);
 
+  // Start camera function
   const startCamera = async () => {
     try {
+      setError("");
       const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user" } // Front camera
+        video: { 
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
       videoRef.current.srcObject = cameraStream;
       setStream(cameraStream);
     } catch (error) {
       console.error("Camera error:", error);
-      alert("Please allow camera access to take photos");
+      setError("Please allow camera access to take photos");
     }
   };
 
+  // Take photo function
   const takePhoto = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
     if (!video || !video.videoWidth) {
-      alert("Camera is not ready yet. Please wait or click Start Camera again.");
+      setError("Camera is not ready yet. Please wait or click Start Camera again.");
       return;
     }
     
@@ -45,31 +55,63 @@ const Click = ({ onClose, onUpload }) => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!username.trim() || !caption.trim()) {
-      alert("Please fill in both username and caption");
-      return;
-    }
+  // Convert canvas to blob (image file)
+  const canvasToFile = () => {
+    const canvas = canvasRef.current;
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+        resolve(file);
+      }, 'image/jpeg', 0.8); // 0.8 quality
+    });
+  };
+
+  // Handle upload with actual photo
+  const handleUpload = async () => {
+    setLoading(true);
+    setError("");
 
     try {
-      console.log("Sending upload request...");
-      
-      // Send to backend WITHOUT the image (using placeholder)
-      const response = await axios.post(
-        "https://insta-vibe-backend-8yxq.onrender.com/upload",
-        {
-          username: username,
-          caption: caption
-        },
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      // Validate inputs
+      if (!username.trim()) {
+        setError("Please enter a username");
+        setLoading(false);
+        return;
+      }
 
-      console.log("Upload response:", response.data);
+      if (!caption.trim()) {
+        setError("Please enter a caption");
+        setLoading(false);
+        return;
+      }
+
+      // Get the photo from canvas
+      const photoFile = await canvasToFile();
       
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append("file", photoFile);
+      formData.append("username", username.trim());
+      formData.append("caption", caption.trim());
+
+      console.log("Uploading photo...", {
+        file: photoFile,
+        username: username.trim(),
+        caption: caption.trim()
+      });
+
+      // Send to backend
+      const response = await axios.post(`${API}/upload`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
       if (response.data.success) {
-        alert("Post created successfully! 📸");
+        alert("Post created successfully with your photo! 📸");
         
         // Reset form
         setUsername("");
@@ -80,29 +122,33 @@ const Click = ({ onClose, onUpload }) => {
         if (onUpload) onUpload();
         if (onClose) onClose();
       } else {
-        alert("Upload failed: " + (response.data.error || "Unknown error"));
+        setError(response.data.error || "Upload failed");
       }
-    } catch (error) {
-      console.error("Upload error details:", error);
+    } catch (err) {
+      console.error("Upload error:", err);
       
-      // Show user-friendly error message
-      if (error.response) {
+      if (err.response) {
         // Server responded with error
-        if (error.response.status === 500) {
-          alert("Server error. The backend might be waking up. Please try again in 30 seconds.");
-        } else if (error.response.status === 400) {
-          alert("Bad request: " + (error.response.data.error || "Please check your input"));
+        if (err.response.status === 500) {
+          setError("Server error. The backend might be waking up. Please try again in 30 seconds.");
+        } else if (err.response.status === 400) {
+          setError("Bad request: " + (err.response.data.error || "Please check your input"));
+        } else {
+          setError(err.response.data?.error || "Upload failed");
         }
-      } else if (error.request) {
+      } else if (err.request) {
         // Request made but no response
-        alert("Network error. Please check your internet connection.");
+        setError("Network error. Please check your internet connection.");
       } else {
         // Something else
-        alert("Error: " + error.message);
+        setError("Error: " + err.message);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Close camera and modal
   const closeCamera = () => {
     // Clean up camera stream
     if (stream) {
@@ -112,105 +158,244 @@ const Click = ({ onClose, onUpload }) => {
     if (onClose) onClose();
   };
 
+  // Reset to camera view
+  const retakePhoto = () => {
+    setPhotoTaken(false);
+    startCamera();
+  };
+
   return (
-    <div className="create-post-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Camera Post</h2>
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <h2 style={styles.title}>Create Camera Post</h2>
         <button 
           onClick={closeCamera}
-          style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}
+          style={styles.closeButton}
+          disabled={loading}
         >
           ✕
         </button>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
+      {/* Camera/Preview Section */}
+      <div style={styles.cameraContainer}>
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          style={{ 
-            width: "100%", 
-            maxHeight: "300px",
-            display: photoTaken ? "none" : "block",
-            backgroundColor: '#000'
+          style={{
+            ...styles.cameraElement,
+            display: photoTaken ? "none" : "block"
           }}
         />
         <canvas
           ref={canvasRef}
-          style={{ 
-            display: photoTaken ? "block" : "none", 
-            width: "100%",
-            maxHeight: "300px"
+          style={{
+            ...styles.cameraElement,
+            display: photoTaken ? "block" : "none"
           }}
         />
       </div>
 
+      {/* Camera Controls */}
       {!photoTaken ? (
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-          <button className="upload-button" onClick={startCamera}>
+        <div style={styles.cameraControls}>
+          <button
+            onClick={startCamera}
+            style={{
+              ...styles.cameraButton,
+              backgroundColor: stream ? '#666' : '#0095f6'
+            }}
+            disabled={loading}
+          >
             {stream ? "Restart Camera" : "Start Camera"}
           </button>
-          <button 
-            className="upload-button" 
+          <button
             onClick={takePhoto}
-            disabled={!stream}
-            style={{ opacity: stream ? 1 : 0.5 }}
+            style={{
+              ...styles.cameraButton,
+              backgroundColor: '#e1306c',
+              opacity: stream ? 1 : 0.5,
+              cursor: stream ? 'pointer' : 'not-allowed'
+            }}
+            disabled={!stream || loading}
           >
             Take Photo
           </button>
         </div>
       ) : (
+        /* Form Section */
         <>
-          <div style={{ marginBottom: '15px' }}>
+          <div style={styles.formGroup}>
             <input
-              className="text-input"
               type="text"
-              placeholder="Your username"
+              placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
+              style={styles.input}
+              disabled={loading}
             />
             <textarea
-              className="caption-input"
-              placeholder="What's on your mind?"
+              placeholder="Caption"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              style={{ width: '100%', padding: '10px', minHeight: '80px' }}
+              style={styles.textarea}
+              disabled={loading}
             />
           </div>
-          
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <button 
-              className="upload-button" 
-              onClick={() => {
-                setPhotoTaken(false);
-                startCamera();
+
+          {error && <p style={styles.error}>{error}</p>}
+
+          <div style={styles.formControls}>
+            <button
+              onClick={retakePhoto}
+              style={{
+                ...styles.button,
+                backgroundColor: '#666',
+                flex: 1
               }}
-              style={{ background: '#666' }}
+              disabled={loading}
             >
-              Retake
+              Retake Photo
             </button>
-            <button 
-              className="upload-button" 
-              onClick={handleSubmit}
-              disabled={!username.trim() || !caption.trim()}
-              style={{ 
-                opacity: (username.trim() && caption.trim()) ? 1 : 0.5,
-                background: 'linear-gradient(45deg, #FF0080, #FF8C00)'
+            <button
+              onClick={handleUpload}
+              style={{
+                ...styles.button,
+                backgroundColor: loading ? '#ccc' : '#e1306c',
+                opacity: loading ? 0.7 : 1,
+                flex: 2,
+                background: loading ? '#ccc' : 'linear-gradient(45deg, #FF0080, #FF8C00)'
               }}
+              disabled={loading || !username.trim() || !caption.trim()}
             >
-              Upload Post
+              {loading ? "Uploading..." : "Upload Post"}
             </button>
           </div>
           
-          <p style={{ fontSize: '12px', color: '#666', marginTop: '10px', textAlign: 'center' }}>
-            Note: For now, a placeholder image will be used. Future updates will include actual photo uploads.
+          <p style={styles.note}>
+            Your photo will be uploaded directly to the server.
           </p>
         </>
       )}
     </div>
   );
+};
+
+const styles = {
+  container: {
+    padding: "20px",
+    maxWidth: "500px",
+    margin: "0 auto",
+    backgroundColor: "white",
+    borderRadius: "10px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.15)"
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px'
+  },
+  title: {
+    margin: 0,
+    color: "#333",
+    fontSize: "24px",
+    fontWeight: "600"
+  },
+  closeButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '28px',
+    cursor: 'pointer',
+    color: '#666',
+    padding: '5px 10px',
+    borderRadius: '50%',
+    transition: 'all 0.2s'
+  },
+  cameraContainer: {
+    width: "100%",
+    height: "300px",
+    marginBottom: "20px",
+    backgroundColor: "#000",
+    borderRadius: "10px",
+    overflow: "hidden",
+    position: "relative"
+  },
+  cameraElement: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover"
+  },
+  cameraControls: {
+    display: 'flex',
+    gap: '15px',
+    justifyContent: 'center'
+  },
+  cameraButton: {
+    padding: '12px 25px',
+    color: 'white',
+    border: 'none',
+    borderRadius: '25px',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    minWidth: '140px'
+  },
+  formGroup: {
+    marginBottom: '20px'
+  },
+  input: {
+    width: "100%",
+    padding: "14px",
+    marginBottom: "15px",
+    border: "2px solid #ddd",
+    borderRadius: "8px",
+    fontSize: "16px",
+    transition: 'border 0.2s'
+  },
+  textarea: {
+    width: "100%",
+    padding: "14px",
+    marginBottom: "15px",
+    border: "2px solid #ddd",
+    borderRadius: "8px",
+    fontSize: "16px",
+    minHeight: "100px",
+    resize: "vertical",
+    fontFamily: 'inherit'
+  },
+  button: {
+    padding: "14px 25px",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "16px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  formControls: {
+    display: 'flex',
+    gap: '15px',
+    justifyContent: 'space-between'
+  },
+  error: {
+    color: "red",
+    backgroundColor: "#ffe6e6",
+    padding: "12px",
+    borderRadius: "8px",
+    marginBottom: "15px",
+    fontSize: "14px"
+  },
+  note: {
+    fontSize: '12px',
+    color: '#666',
+    marginTop: '15px',
+    textAlign: 'center',
+    fontStyle: 'italic'
+  }
 };
 
 export default Click;

@@ -3,36 +3,46 @@ import axios from "axios";
 import "./Styles.css";
 
 function CreatePost(props){
+  const [file, setFile] = useState(null);
   const [username, setUsername] = useState("");
   const [caption, setCaption] = useState("");
   const [message, setMessage] = useState("");
 
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !caption.trim()) {
-      setMessage("Please fill in username and caption.");
+    if (!file || !username.trim() || !caption.trim()) {
+      setMessage("Please fill in username, caption and select a file.");
       return;
     }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("username", username);
+    formData.append("caption", caption);
 
     try {
       await axios.post(
         "https://insta-vibe-backend-8yxq.onrender.com/upload",
+        formData,
         {
-          username: username,
-          caption: caption,
-        },
-        {
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "multipart/form-data" },
         }
       );
 
       setMessage("Post created successfully!");
-      props.setRefreshTrigger((prev) => prev + 1);
+      props.setRefreshTrigger(
+        (prev)=>prev+1
+      );
       setUsername("");
       setCaption("");
+      setFile(null);
     } catch (error) {
       console.error(error);
-      setMessage("Error uploading post. Try again in 30 seconds.");
+      setMessage("Error uploading post.");
     }
   };
 
@@ -53,6 +63,12 @@ function CreatePost(props){
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           className="caption-input"
+        />
+
+        <input
+          type="file"
+          onChange={handleFileChange}
+          className="file-input"
         />
 
         <button type="submit" className="upload-button">
