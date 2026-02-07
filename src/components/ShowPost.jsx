@@ -7,6 +7,18 @@ function ShowPost(props){
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Username mapping object
+  const usernameMap = {
+    "john_doe": "anjali",
+    "jane_smith": "shivani", 
+    "travel_buddy": "Shruti"
+  };
+
+  // Function to map username
+  const getDisplayUsername = (originalUsername) => {
+    return usernameMap[originalUsername] || originalUsername;
+  };
+
   useEffect(() => {
     fetchFiles();
   }, []);
@@ -86,7 +98,8 @@ function ShowPost(props){
               />
             </div>
             <div className="post-footer">
-              <p className="post-username">@{file.username}</p>
+              {/* Updated line: Using getDisplayUsername function */}
+              <p className="post-username">@{getDisplayUsername(file.username)}</p>
               <p className="post-caption">{file.caption}</p>
               <p className="post-time">{formatTime(file.upload_time)}</p>
               <button
